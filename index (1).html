@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digit Pulse</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#07060f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07060f;--panel:#100c24;--line:#2d2260;--cy:#19f3ff;--mg:#ff2bd6;--lime:#b6ff3b;--ink:#ebe8ff;--mute:#8d86b8}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 20% -10%,#1d1050 0,var(--bg) 55%) fixed;color:var(--ink);font:15px/1.5 system-ui,"Segoe UI",sans-serif;padding:18px}
+main{max-width:880px;margin:0 auto}
+h1,h2{font-family:Orbitron,system-ui,sans-serif;margin:0}
+h1{font-size:26px;color:var(--cy);text-shadow:0 0 12px var(--cy),0 0 30px #19f3ff66;display:flex;align-items:center;gap:12px}
+h2{font-size:15px;color:var(--mg);text-shadow:0 0 10px #ff2bd699;margin-bottom:8px}
+.sub{color:var(--mute);margin:4px 0 16px;font-size:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 0 18px #19f3ff14,inset 0 0 20px #ff2bd60d}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.row+.row{margin-top:12px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:4px;flex:1;min-width:130px}
+input,select{font:inherit;color:var(--ink);background:#0a0719;border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+input:focus,select:focus{outline:0;border-color:var(--cy);box-shadow:0 0 10px #19f3ff88}
+button{font:inherit;font-weight:700;color:#07060f;background:var(--cy);border:0;border-radius:8px;padding:10px 18px;cursor:pointer;box-shadow:0 0 14px #19f3ff99}
+button.go{background:var(--mg);box-shadow:0 0 14px #ff2bd699;animation:pulse 2.2s ease-in-out infinite}
+button.dim{background:#2a2060;color:var(--ink);box-shadow:none}
+button:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;animation:none}
+button:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+.live{display:inline-block;width:10px;height:10px;border-radius:50%;background:#555;flex:none}
+.live.on{background:var(--lime);box-shadow:0 0 10px var(--lime);animation:pulse 1.6s ease-in-out infinite}
+#status{margin-top:12px;font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center}
+#sug{font-weight:700;color:var(--lime);text-shadow:0 0 10px #b6ff3b66;margin:12px 0}
+#digits{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;height:230px;margin-top:12px}
+.d{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-size:11px;color:var(--mute)}
+.d .b{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(var(--cy),#6a3dff);box-shadow:0 0 10px #19f3ff66;min-height:3px;transition:height .3s}
+.d strong{font:800 20px Orbitron,sans-serif;color:var(--ink);margin-top:5px}
+.d.top .b{background:linear-gradient(var(--lime),#1fe08a);box-shadow:0 0 18px var(--lime);animation:pulse 1.6s ease-in-out infinite}
+.d.top strong{color:var(--lime);text-shadow:0 0 12px var(--lime)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-size:12px}
+tr.pick{background:#241a58}
+#win tr{cursor:pointer}
+#win b,#per b{color:var(--lime)}
+.scroll{max-height:320px;overflow:auto}
+.hint{color:var(--mute);font-size:13px}
+.log{padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+@keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.45)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1><span class="live" id="dot"></span>Digit Pulse</h1>
+<p class="sub">Live last-digit analysis for Deriv markets, in tick windows of 5, 10, 15 and up.</p>
+
+<section class="panel">
+  <h2>Connection</h2>
+  <div class="row">
+    <label>Deriv app ID<input id="app" inputmode="numeric" placeholder="e.g. 1089"></label>
+    <button id="conn">Connect</button>
+  </div>
+  <div class="row">
+    <label>Market<select id="mkt" disabled><option>Connect first</option></select></label>
+    <label>Largest tick window<input id="max" type="number" min="5" max="5000" step="5" value="100"></label>
+  </div>
+  <div class="row">
+    <button id="start" class="go" disabled>Start analysis</button>
+    <button id="stop" class="dim" disabled>Stop live updates</button>
+  </div>
+  <div id="status"><span id="msg">Enter your app ID and connect.</span></div>
+</section>
+
+<section class="panel">
+  <h2>Strategy and trading</h2>
+  <div class="hint">A digit qualifies in a market when it is the single most frequent digit in the last 25, 50 and 100 ticks and its average share is at least the minimum. The market with the highest share is suggested. Each digit still has a fixed 10% chance per tick, so this strategy has no real edge.</div>
+  <div class="row">
+    <label>API token (typed here, never saved)<input id="tok" type="password" autocomplete="off" placeholder="Token with Trade scope"></label>
+    <button id="login">Log in</button>
+  </div>
+  <div id="acct" class="hint" style="margin-top:8px">Not logged in.</div>
+  <div class="row">
+    <label>Stake<input id="stake" type="number" min="0.35" step="0.01" value="1"></label>
+    <label>Duration (ticks)<input id="dur" type="number" min="1" max="10" value="5"></label>
+    <label>Min. share %<input id="minsh" type="number" min="10" max="50" value="13"></label>
+    <label>Pause after losses<input id="maxloss" type="number" min="1" max="20" value="3"></label>
+  </div>
+  <div id="sug">Run an analysis on All markets with a window of 100 or more.</div>
+  <div class="row">
+    <button id="trade" class="go" disabled>Trade suggested digit</button>
+    <button id="reset" class="dim">Reset loss pause</button>
+  </div>
+  <div id="log" style="margin-top:10px"></div>
+</section>
+
+<section class="panel">
+  <h2>Digit frequency (0–9)</h2>
+  <div id="sub" class="hint">Run an analysis to see results.</div>
+  <div id="digits"></div>
+</section>
+
+<section class="panel">
+  <h2>Most repeated digit by tick window</h2>
+  <div class="hint" style="margin-bottom:6px">Tap a row to show its frequencies above.</div>
+  <div class="scroll"><table><thead><tr><th>Ticks</th><th>Most repeated</th><th>Count</th><th>Share</th></tr></thead><tbody id="win"></tbody></table></div>
+</section>
+
+<section class="panel" id="perPanel" hidden>
+  <h2>Most repeated digit per market</h2>
+  <div class="hint" id="perSub" style="margin-bottom:6px"></div>
+  <div class="scroll"><table><thead><tr><th>Market</th><th>Most repeated</th><th>Count</th></tr></thead><tbody id="per"></tbody></table></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+let ws,rid=0,pending={},symbols=[],data={},names={},maxN=100,sel=100,timer=null;
+let acct=null,sug=null,losses=0,seen={},logs=[];
+const say=t=>$('msg').textContent=t;
+try{$('app').value=localStorage.getItem('deriv_app')||''}catch(e){}
+
+function send(o){return new Promise((res,rej)=>{const id=++rid;pending[id]={res,rej};ws.send(JSON.stringify({...o,req_id:id}))})}
+const lastDigit=(p,pip)=>+Number(p).toFixed(pip).slice(-1);
+const count=(arrs,n)=>{const c=Array(10).fill(0);arrs.forEach(a=>a.slice(-n).forEach(d=>c[d]++));return c};
+const top=c=>{const m=Math.max(...c);return{m,ds:c.map((x,i)=>x===m?i:-1).filter(i=>i>=0)}};
+
+$('conn').onclick=()=>{
+  const app=$('app').value.trim();
+  if(!/^\d+$/.test(app)){say('App ID must be a number.');return}
+  try{localStorage.setItem('deriv_app',app)}catch(e){}
+  if(ws)ws.close();
+  say('Connecting…');
+  ws=new WebSocket('wss://ws.derivws.com/websockets/v3?app_id='+app);
+  ws.onopen=async()=>{
+    $('dot').className='live on';
+    try{loadMarkets((await send({active_symbols:'brief',product_type:'basic'})).active_symbols||[])}
+    catch(e){say('Could not load markets: '+e.message)}
+  };
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.req_id&&pending[m.req_id]){const p=pending[m.req_id];delete pending[m.req_id];m.error?p.rej(new Error(m.error.message)):p.res(m);return}
+    const c=m.proposal_open_contract;
+    if(c&&c.is_sold&&!seen[c.contract_id]){
+      seen[c.contract_id]=1;const win=c.profit>0;
+      if(win)losses=0;else losses++;
+      const l=logs.find(x=>x.id===c.contract_id);
+      if(l)l.t=l.t.replace('waiting…',win?'WON +'+c.profit:'LOST '+c.profit);
+      drawLog();showSug();return;
+    }
+    if(m.tick&&data[m.tick.symbol]){
+      const a=data[m.tick.symbol];a.push(lastDigit(m.tick.quote,m.tick.pip_size));
+      if(a.length>maxN)a.shift();
+      clearTimeout(timer);timer=setTimeout(render,250);
+    }
+  };
+  ws.onclose=()=>{$('dot').className='live';say('Disconnected. Press Connect to reconnect.');$('start').disabled=true;$('stop').disabled=true;acct=null;showSug()};
+  ws.onerror=()=>say('Connection failed. Check the app ID and your network.');
+};
+
+function loadMarkets(list){
+  symbols=list;names={};list.forEach(s=>names[s.symbol]=s.display_name);
+  const g={};list.forEach(s=>(g[s.market_display_name]=g[s.market_display_name]||[]).push(s));
+  let h='<option value="ALL">All markets ('+list.length+')</option>';
+  Object.keys(g).sort().forEach(k=>{h+='<optgroup label="'+k+'">'+g[k].map(s=>'<option value="'+s.symbol+'">'+s.display_name+'</option>').join('')+'</optgroup>'});
+  $('mkt').innerHTML=h;$('mkt').disabled=false;$('start').disabled=false;
+  say('Connected. Choose a market and start the analysis.');
+}
+
+async function stopLive(){
+  $('stop').disabled=true;
+  if(ws&&ws.readyState===1)try{ws.send(JSON.stringify({forget_all:'ticks'}))}catch(e){}
+}
+$('stop').onclick=()=>{stopLive();say('Live updates stopped. Showing the last snapshot.')};
+
+$('start').onclick=async()=>{
+  maxN=Math.min(5000,Math.max(5,Math.ceil((+$('max').value||100)/5)*5));
+  $('max').value=maxN;
+  await stopLive();data={};
+  const v=$('mkt').value,list=v==='ALL'?symbols.map(s=>s.symbol):[v];
+  $('start').disabled=true;let ok=0;
+  for(let i=0;i<list.length;i++){
+    say('Loading '+(names[list[i]]||list[i])+' ('+(i+1)+'/'+list.length+')…');
+    try{
+      const r=await send({ticks_history:list[i],count:maxN,end:'latest',style:'ticks'});
+      data[list[i]]=r.history.prices.map(p=>lastDigit(p,r.pip_size));ok++;
+    }catch(e){}
+  }
+  $('start').disabled=false;
+  if(!ok){say('No tick history came back. Try another market.');return}
+  sel=maxN;render();
+  Object.keys(data).forEach(s=>ws.send(JSON.stringify({ticks:s,subscribe:1})));
+  $('stop').disabled=false;
+  say('Live: '+ok+' market'+(ok>1?'s':'')+' streaming. Results update with each tick.');
+};
+
+function render(){
+  const arrs=Object.values(data);if(!arrs.length)return;
+  let rows='';
+  for(let n=5;n<=maxN;n+=5){
+    const c=count(arrs,n),t=top(c),tot=c.reduce((a,b)=>a+b,0);
+    rows+='<tr data-n="'+n+'"'+(n===sel?' class="pick"':'')+'><td>'+n+'</td><td><b>'+t.ds.join(', ')+'</b></td><td>'+t.m+'</td><td>'+(t.m/tot*100).toFixed(1)+'%</td></tr>';
+  }
+  $('win').innerHTML=rows;
+  document.querySelectorAll('#win tr').forEach(r=>r.onclick=()=>{sel=+r.dataset.n;render()});
+  const c=count(arrs,sel),t=top(c),tot=c.reduce((a,b)=>a+b,0);
+  $('sub').textContent='Last '+sel+' ticks'+(arrs.length>1?' across '+arrs.length+' markets':'')+' · '+tot+' digits counted';
+  $('digits').innerHTML=c.map((x,i)=>'<div class="d'+(t.ds.includes(i)?' top':'')+'"><span>'+(tot?(x/tot*100).toFixed(1):0)+'%</span><div class="b" style="height:'+(t.m?x/t.m*150:0)+'px"></div><strong>'+i+'</strong><span>'+x+'</span></div>').join('');
+  const syms=Object.keys(data);
+  $('perPanel').hidden=syms.length<2;
+  if(syms.length>1){
+    $('perSub').textContent='Based on the last '+sel+' ticks of each market.';
+    $('per').innerHTML=syms.map(s=>({s,t:top(count([data[s]],sel))})).sort((a,b)=>b.t.m-a.t.m)
+      .map(o=>'<tr><td>'+(names[o.s]||o.s)+'</td><td><b>'+o.t.ds.join(', ')+'</b></td><td>'+o.t.m+'</td></tr>').join('');
+  }
+  showSug();
+}
+
+function strategy(){
+  const W=[25,50,100].filter(w=>w<=maxN),min=+$('minsh').value/100;let best=null;
+  if(!W.length)return null;
+  Object.keys(data).forEach(s=>{
+    if(data[s].length<W[W.length-1])return;
+    const lead=Array(10).fill(0),sh=Array(10).fill(0);
+    W.forEach(w=>{const c=count([data[s]],w),t=top(c);if(t.ds.length===1)lead[t.ds[0]]++;c.forEach((x,d)=>sh[d]+=x/w/W.length)});
+    for(let d=0;d<10;d++)if(lead[d]===W.length&&sh[d]>=min&&(!best||sh[d]>best.share))best={s,d,share:sh[d]};
+  });
+  return best;
+}
+function showSug(){
+  sug=strategy();
+  const paused=losses>=+$('maxloss').value;
+  let t=!Object.keys(data).length?'Run an analysis on All markets with a window of 100 or more.':sug?'Suggested: '+(names[sug.s]||sug.s)+', digit '+sug.d+' (average share '+(sug.share*100).toFixed(1)+'%)':'No market meets the strategy right now. Live ticks keep updating the scan.';
+  if(paused)t+=' · Trading paused: loss limit reached.';
+  $('sug').textContent=t;
+  $('trade').disabled=!(acct&&sug)||paused;
+}
+$('reset').onclick=()=>{losses=0;showSug()};
+
+function drawLog(){$('log').innerHTML=logs.slice(0,10).map(l=>'<div class="log">'+l.t+'</div>').join('')}
+function addLog(id,t){logs.unshift({id,t});drawLog()}
+
+$('login').onclick=async()=>{
+  if(!ws||ws.readyState!==1){$('acct').textContent='Connect first.';return}
+  try{
+    const r=await send({authorize:$('tok').value.trim()});
+    acct=r.authorize;$('tok').value='';
+    $('acct').textContent=acct.loginid+' · '+(acct.is_virtual?'DEMO':'REAL MONEY')+' account · balance '+acct.balance+' '+acct.currency;
+    showSug();
+  }catch(e){$('acct').textContent='Login failed: '+e.message}
+};
+
+$('trade').onclick=async()=>{
+  sug=strategy();if(!sug){showSug();return}
+  const stake=+$('stake').value,dur=Math.round(+$('dur').value),nm=names[sug.s]||sug.s,d=sug.d,sym=sug.s;
+  if(!(stake>0)||!(dur>=1)){alert('Check the stake and duration.');return}
+  if(!confirm((acct.is_virtual?'DEMO':'REAL MONEY')+' trade\n'+nm+'\nMatches digit '+d+'\nStake '+stake+' '+acct.currency+', '+dur+' ticks\n\nPlace this trade?'))return;
+  $('trade').disabled=true;
+  try{
+    const p=await send({proposal:1,amount:stake,basis:'stake',contract_type:'DIGITMATCH',currency:acct.currency,duration:dur,duration_unit:'t',symbol:sym,barrier:String(d)});
+    const b=await send({buy:p.proposal.id,price:p.proposal.ask_price});
+    const id=b.buy.contract_id;
+    addLog(id,nm+' · digit '+d+' · stake '+stake+' · waiting…');
+    ws.send(JSON.stringify({proposal_open_contract:1,contract_id:id,subscribe:1}));
+  }catch(e){addLog(0,'Trade failed: '+e.message)}
+  showSug();
+};
+
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
